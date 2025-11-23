@@ -1,0 +1,8 @@
+CREATE TABLE refresh_token (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    refresh_token VARCHAR(255) NOT NULL UNIQUE,
+    username VARCHAR(255) NOT NULL,
+    expiry_date TIMESTAMP NOT NULL,
+    created_date TIMESTAMP NOT NULL,
+    is_used BOOLEAN NOT NULL
+);
