@@ -3,9 +3,9 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: filmdb
-      POSTGRES_USER: film_user
-      POSTGRES_PASSWORD: film_pass
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Adana184
     ports:
       - "5432:5432"
     volumes:

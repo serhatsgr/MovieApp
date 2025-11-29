@@ -4,18 +4,21 @@ import com.serhatsgr.dto.*;
 import com.serhatsgr.entity.Comment;
 import com.serhatsgr.entity.Film;
 import com.serhatsgr.entity.User;
-import com.serhatsgr.exception.BaseException;
-import com.serhatsgr.exception.ErrorMessage;
-import com.serhatsgr.exception.MessageType;
+import com.serhatsgr.exception.*;
 import com.serhatsgr.repository.CommentRepository;
 import com.serhatsgr.repository.FilmRepository;
 import com.serhatsgr.repository.UserRepository;
 import com.serhatsgr.service.ICommentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,126 +28,160 @@ public class CommentServiceImpl implements ICommentService {
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
     private final FilmRepository filmRepository;
-    private final UserService service;
 
+    // --- Helper: Admin Kontrolü ---
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_ADMIN"));
+    }
+
+    // --- Yorum Oluşturma (Yanıt Verme Dahil) ---
     @Override
+    @Transactional
     public CommentResponse createComment(CreateCommentRequest request) {
-        try {
-            String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            User user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new BaseException(new ErrorMessage(
-                            MessageType.RESOURCE_NOT_FOUND, "Kullanıcı bulunamadı: " + username
-                    )));
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.RESOURCE_NOT_FOUND, "Kullanıcı bulunamadı")));
 
-            Film film = filmRepository.findById(request.filmId())
-                    .orElseThrow(() -> new BaseException(new ErrorMessage(
-                            MessageType.RESOURCE_NOT_FOUND, "Film bulunamadı: " + request.filmId()
-                    )));
+        Film film = filmRepository.findById(request.filmId())
+                .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.RESOURCE_NOT_FOUND, "Film bulunamadı")));
 
-            Comment comment = Comment.builder()
-                    .content(request.content())
-                    .user(user)
-                    .film(film)
-                    .build();
-
-            Comment savedComment = commentRepository.save(comment);
-
-            return mapToResponse(savedComment);
-
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BaseException(new ErrorMessage(
-                    MessageType.INTERNAL_ERROR, "Yorum oluşturulurken hata oluştu: " + e.getMessage()
-            ));
+        // Eğer bir yoruma yanıt veriliyorsa (parentCommentId varsa)
+        Comment parent = null;
+        if (request.parentCommentId() != null) {
+            parent = commentRepository.findById(request.parentCommentId())
+                    .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.RESOURCE_NOT_FOUND, "Yanıtlanan yorum bulunamadı")));
         }
+
+        Comment comment = Comment.builder()
+                .content(request.content())
+                .user(user)
+                .film(film)
+                .parentComment(parent) // Parent ilişki
+                .isDeleted(false)
+                .build();
+
+        Comment savedComment = commentRepository.save(comment);
+        return mapToResponse(savedComment);
     }
 
+    // --- Yorum Güncelleme ---
     @Override
+    @Transactional
     public CommentResponse updateComment(Long commentId, UpdateCommentRequest request, String username) {
-        try {
-            Comment comment = commentRepository.findById(commentId)
-                    .orElseThrow(() -> new BaseException(new ErrorMessage(
-                            MessageType.RESOURCE_NOT_FOUND, "Yorum bulunamadı: " + commentId
-                    )));
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BaseException(new ErrorMessage(
+                        MessageType.RESOURCE_NOT_FOUND, "Yorum bulunamadı: " + commentId
+                )));
 
-            if (!comment.getUser().getUsername().equals(username)) {
-                throw new BaseException(new ErrorMessage(
-                        MessageType.UNAUTHORIZED, "Bu yorumu güncelleme yetkiniz yok"
-                ));
-            }
-
-            comment.setContent(request.content());
-            Comment updatedComment = commentRepository.save(comment);
-
-            return mapToResponse(updatedComment);
-
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
+        // Silinmiş ("Soft Deleted") bir yorum güncellenemez
+        if (comment.isDeleted()) {
             throw new BaseException(new ErrorMessage(
-                    MessageType.INTERNAL_ERROR, "Yorum güncellenirken hata oluştu: " + e.getMessage()
+                    MessageType.BAD_REQUEST, "Silinmiş bir yorumu düzenleyemezsiniz."
             ));
         }
+
+        // Sadece yorum sahibi güncelleyebilir
+        if (!comment.getUser().getUsername().equals(username)) {
+            throw new BaseException(new ErrorMessage(
+                    MessageType.FORBIDDEN, "Bu yorumu güncelleme yetkiniz yok"
+            ));
+        }
+
+        comment.setContent(request.content());
+        Comment updatedComment = commentRepository.save(comment);
+
+        return mapToResponse(updatedComment);
     }
 
+    // --- Yorum Silme (Soft vs Hard Delete) ---
     @Override
+    @Transactional
     public void deleteComment(Long commentId, String username) {
-        try {
-            Comment comment = commentRepository.findById(commentId)
-                    .orElseThrow(() -> new BaseException(new ErrorMessage(
-                            MessageType.RESOURCE_NOT_FOUND, "Yorum bulunamadı: " + commentId
-                    )));
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.RESOURCE_NOT_FOUND, "Yorum bulunamadı")));
 
-            if (!comment.getUser().getUsername().equals(username)) {
-                throw new BaseException(new ErrorMessage(
-                        MessageType.UNAUTHORIZED, "Bu yorumu silme yetkiniz yok"
-                ));
-            }
+        boolean isOwner = comment.getUser().getUsername().equals(username);
+        boolean isAdmin = isAdmin();
 
+        if (!isOwner && !isAdmin) {
+            throw new BaseException(new ErrorMessage(MessageType.FORBIDDEN, "Bu yorumu silme yetkiniz yok"));
+        }
+
+        // MANTIK: Eğer bu yorumun alt yanıtları varsa, yorumu tamamen silmek ağacı bozar.
+        // Bu yüzden "Soft Delete" yapıyoruz (İçeriği gizliyoruz, kaydı tutuyoruz).
+        // Alt yanıt yoksa "Hard Delete" yapıyoruz (Veritabanından siliyoruz).
+        if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
+            comment.setDeleted(true);
+            comment.setContent("Bu yorum silindi."); // İçeriği temizle
+            commentRepository.save(comment);
+        } else {
             commentRepository.delete(comment);
-
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BaseException(new ErrorMessage(
-                    MessageType.INTERNAL_ERROR, "Yorum silinirken hata oluştu: " + e.getMessage()
-            ));
         }
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CommentResponse> getCommentsByFilm(Long filmId) {
-        try {
-            Film film = filmRepository.findById(filmId)
-                    .orElseThrow(() -> new BaseException(new ErrorMessage(
-                            MessageType.RESOURCE_NOT_FOUND, "Film bulunamadı: " + filmId
-                    )));
+        Film film = filmRepository.findById(filmId)
+                .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.RESOURCE_NOT_FOUND, "Film bulunamadı")));
 
-            List<Comment> comments = commentRepository.findAllByFilm(film);
+        List<Comment> allComments = commentRepository.findAllByFilm(film);
 
-            return comments.stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
+        // Hepsini DTO'ya çevir
+        List<CommentResponse> allDtos = allComments.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
 
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BaseException(new ErrorMessage(
-                    MessageType.INTERNAL_ERROR, "Yorumlar getirilirken hata oluştu: " + e.getMessage()
-            ));
+        // ID -> DTO haritası
+        Map<Long, CommentResponse> dtoMap = allDtos.stream()
+                .collect(Collectors.toMap(CommentResponse::id, c -> c));
+
+        List<CommentResponse> rootComments = new ArrayList<>();
+
+        for (CommentResponse dto : allDtos) {
+            if (dto.parentCommentId() == null) {
+                rootComments.add(dto);
+            } else {
+                CommentResponse parent = dtoMap.get(dto.parentCommentId());
+                if (parent != null) {
+                    parent.replies().add(dto);
+                }
+            }
         }
+
+        // SIRALAMA:
+        // 1. Ana yorumlar: En YENİ en üstte
+        rootComments.sort((c1, c2) -> c2.createdAt().compareTo(c1.createdAt()));
+
+        // 2. Alt yorumlar: En ESKİ en üstte (Konuşma sırası)
+        allDtos.forEach(dto ->
+                dto.replies().sort((r1, r2) -> r1.createdAt().compareTo(r2.createdAt()))
+        );
+
+        return rootComments;
     }
 
-    // ===== Mapper =====
     private CommentResponse mapToResponse(Comment comment) {
+        // ... (Ban/Delete kontrolleri aynı) ...
+        boolean isAuthorBanned = !comment.getUser().isEnabled();
+        boolean isDeleted = comment.isDeleted();
+        String displayContent = isDeleted ? "🗑️ [Silindi]" : (isAuthorBanned ? "🚫 [Banlı]" : comment.getContent());
+
         return new CommentResponse(
                 comment.getId(),
-                comment.getContent(),
+                displayContent,
                 comment.getCreatedAt(),
                 comment.getUpdatedAt(),
                 comment.getUser().getUsername(),
-                comment.getFilm().getId()
+                comment.getFilm().getId(),
+                isAuthorBanned,
+                isDeleted,
+                comment.getParentComment() != null ? comment.getParentComment().getId() : null,
+                new ArrayList<>() // Boş liste başlat
         );
     }
 }

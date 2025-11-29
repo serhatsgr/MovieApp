@@ -32,7 +32,8 @@ public class Category {
         this.films = films;
     }
 
-    // === Getters ===
+
+
     public Long getId() {
         return id;
     }

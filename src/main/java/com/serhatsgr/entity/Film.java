@@ -44,6 +44,8 @@ public class Film {
     @OneToMany(mappedBy = "film", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Comment> comments = new HashSet<>();
 
+    private Double averageRating = 0.0;
+    private Integer ratingCount = 0;
 
     public Film() {
     }
@@ -127,6 +129,14 @@ public class Film {
     public void setComments(Set<Comment> comments) {
         this.comments = comments;
     }
+
+    public Double getAverageRating() { return averageRating; }
+
+    public void setAverageRating(Double averageRating) { this.averageRating = averageRating; }
+
+    public Integer getRatingCount() { return ratingCount; }
+
+    public void setRatingCount(Integer ratingCount) { this.ratingCount = ratingCount; }
 
 
     // --- Helper methods ---

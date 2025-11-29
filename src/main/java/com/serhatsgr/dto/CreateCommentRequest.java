@@ -10,5 +10,7 @@ public record CreateCommentRequest(
         String content,
 
         @NotNull(message = "Film ID boş olamaz")
-        Long filmId
+        Long filmId,
+
+        Long parentCommentId
 ) {}

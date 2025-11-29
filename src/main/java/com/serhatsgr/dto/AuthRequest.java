@@ -8,14 +8,10 @@ import jakarta.validation.constraints.Size;
 
 public record AuthRequest(
 
-        @NotBlank(message = "{login.password.notBlank}" )
-        @Size(min=3, max=32, message="{login.username.size}")
-        @Pattern(regexp="^[a-zA-Z0-9._-]+$", message="{login.username.pattern}")
+        @NotBlank(message = "Kullanıcı adınızı giriniz" )
         String username,
 
-        @NotBlank
-        @Size(min=12, max=128, message="{login.password.size}")
-        @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).{12,128}$", message="{login.password.complexity}")
+        @NotBlank (message = "Lütfen şifrenizi giriniz" )
         String password
 ) {
 }

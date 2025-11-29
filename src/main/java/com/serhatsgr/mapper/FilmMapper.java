@@ -31,11 +31,14 @@ public class FilmMapper {
 
     public DtoFilm toDto(Film film){
         DtoFilm dto =new DtoFilm();
+        dto.setId(film.getId());
         dto.setTitle(film.getTitle());
         dto.setDescription(film.getDescription());
         dto.setReleaseDate(film.getReleaseDate());
         dto.setPosterUrl(film.getPosterUrl());
         dto.setTrailerUrl(film.getTrailerUrl());
+        dto.setAverageRating(film.getAverageRating() != null ? film.getAverageRating() : 0.0);
+        dto.setRatingCount(film.getRatingCount() != null ? film.getRatingCount() : 0);
 
         List<String> category=film.getCategories().stream()
                 .map(Category::getName)

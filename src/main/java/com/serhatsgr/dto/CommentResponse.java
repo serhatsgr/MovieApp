@@ -1,6 +1,7 @@
 package com.serhatsgr.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CommentResponse(
         Long id,
@@ -8,5 +9,9 @@ public record CommentResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         String userName,
-        Long filmId
+        Long filmId,
+        boolean isAuthorBanned,
+        boolean isDeleted,
+        Long parentCommentId,
+        List<CommentResponse> replies
 ) {}

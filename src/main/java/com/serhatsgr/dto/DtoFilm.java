@@ -12,6 +12,8 @@ import java.util.List;
 @AllArgsConstructor
 public class DtoFilm {
 
+    private Long id;
+
     private String title;
 
     private String description;
@@ -24,6 +26,8 @@ public class DtoFilm {
 
     private List<String> categorys;
 
+    private Double averageRating;
 
+    private Integer ratingCount;
 
 }

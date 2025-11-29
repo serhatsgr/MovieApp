@@ -23,13 +23,14 @@ public class CategoryMapper {
     //dto'ya dönüştürme
     public DtoCategory toDto(Category category) {
         DtoCategory dtoCategory=new DtoCategory();
+        dtoCategory.setId(category.getId());
         dtoCategory.setName(category.getName());
         dtoCategory.setDescription(category.getDescription());
 
 
         // Film başlıklarını ve poster URL'lerini bir listeye dönüştürme
         List<DtoFilmSummary> filmSummary = category.getFilms().stream()
-                .map(film -> new DtoFilmSummary(film.getTitle(), film.getPosterUrl()))
+                .map(film -> new DtoFilmSummary(film.getId(), film.getTitle(), film.getPosterUrl()))
                 .collect(Collectors.toList());
 
         dtoCategory.setFilmSummaries(filmSummary);

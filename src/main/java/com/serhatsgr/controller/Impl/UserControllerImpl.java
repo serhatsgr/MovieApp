@@ -6,6 +6,7 @@ import com.serhatsgr.exception.BaseException;
 import com.serhatsgr.exception.ErrorMessage;
 import com.serhatsgr.exception.MessageType;
 import com.serhatsgr.service.Impl.JwtService;
+import com.serhatsgr.service.Impl.PasswordResetService;
 import com.serhatsgr.service.Impl.UserService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -28,11 +29,13 @@ public class UserControllerImpl implements IUserController {
     private final UserService userService;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final PasswordResetService passwordResetService;
 
-    public UserControllerImpl(UserService userService, JwtService jwtService, AuthenticationManager authenticationManager) {
+    public UserControllerImpl(UserService userService, JwtService jwtService, AuthenticationManager authenticationManager, PasswordResetService passwordResetService) {
         this.userService = userService;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -129,5 +132,23 @@ public class UserControllerImpl implements IUserController {
                     "Kullanıcı kaydedilirken hata oluştu"
             ));
         }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiSuccess<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        passwordResetService.initiatePasswordReset(request);
+        return ResponseEntity.ok(ApiSuccess.of("Doğrulama kodu e-posta adresinize gönderildi.", "Email Sent"));
+    }
+
+    @PostMapping("/verify-reset-code")
+    public ResponseEntity<ApiSuccess<String>> verifyResetCode(@Valid @RequestBody VerifyOtpRequest request) {
+        String resetToken = passwordResetService.verifyOtp(request);
+        return ResponseEntity.ok(ApiSuccess.of("Kod doğrulandı.", resetToken));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiSuccess<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResetService.resetPassword(request);
+        return ResponseEntity.ok(ApiSuccess.of("Şifreniz başarıyla güncellendi. Giriş yapabilirsiniz.", "Success"));
     }
 }

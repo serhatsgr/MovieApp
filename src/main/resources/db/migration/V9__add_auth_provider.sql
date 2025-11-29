@@ -1,0 +1,7 @@
+ALTER TABLE users ADD COLUMN provider VARCHAR(20) DEFAULT 'LOCAL';
+
+
+ALTER TABLE users ADD COLUMN profile_image_url VARCHAR(500);
+
+
+ALTER TABLE users ALTER COLUMN password DROP NOT NULL;

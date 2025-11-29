@@ -3,17 +3,19 @@ package com.serhatsgr.service.Impl;
 import com.serhatsgr.dto.RefreshTokenResponse;
 import com.serhatsgr.dto.TokenPairDto;
 import com.serhatsgr.entity.RefreshToken;
+import com.serhatsgr.entity.User; // EKLENDİ
 import com.serhatsgr.exception.BaseException;
 import com.serhatsgr.exception.ErrorMessage;
 import com.serhatsgr.exception.MessageType;
 import com.serhatsgr.repository.RefreshTokenRepository;
+import com.serhatsgr.repository.UserRepository; // EKLENDİ
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority; // EKLENDİ
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors; // EKLENDİ
 
 @Service
 public class JwtService {
@@ -37,10 +40,13 @@ public class JwtService {
     @Value("${jwt.refresh-token-expiry}")
     private Long REFRESH_TOKEN_EXPIRY;
 
-    final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository; // EKLENDİ
 
-    public JwtService(RefreshTokenRepository refreshTokenRepository) {
+    // Constructor Güncellendi
+    public JwtService(RefreshTokenRepository refreshTokenRepository, UserRepository userRepository) {
         this.refreshTokenRepository = refreshTokenRepository;
+        this.userRepository = userRepository;
     }
 
     private Key getSignKey(){
@@ -52,10 +58,22 @@ public class JwtService {
         }
     }
 
+    // GÜNCELLENEN METOD: Rolleri token içine ekliyoruz
     public String generateAccessToken(String username){
         Map<String, Object> claims = new HashMap<>();
         try {
+            // Kullanıcıyı bul ve rollerini al
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.NOT_FOUND, "Kullanıcı bulunamadı")));
+
+            // Rolleri "authorities" key'i ile listeye çevirip ekle
+            claims.put("authorities", user.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.toList()));
+
             return createToken(claims, username);
+        } catch (BaseException e) {
+            throw e;
         } catch (Exception e) {
             throw new BaseException(new ErrorMessage(MessageType.INTERNAL_ERROR, "Access token oluşturulamadı"));
         }
@@ -74,6 +92,8 @@ public class JwtService {
             throw new BaseException(new ErrorMessage(MessageType.INTERNAL_ERROR, "Token oluşturulamadı"));
         }
     }
+
+    // ... Diğer metodlar aynı kalacak (extractAllClaim, extractUsername, vs.) ...
 
     private Claims extractAllClaim(String token){
         try {
@@ -120,10 +140,10 @@ public class JwtService {
 
     public RefreshTokenResponse generateRefreshToken(String username){
         try {
-            refreshTokenRepository.markAllAsUsedByUsername(username); //eski tokenları kullanıldı olarak işaretle
+            refreshTokenRepository.markAllAsUsedByUsername(username);
 
-            String refreshTokenValue = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();  //token
-            LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(REFRESH_TOKEN_EXPIRY); //geçerlilik süresi
+            String refreshTokenValue = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
+            LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(REFRESH_TOKEN_EXPIRY);
 
             RefreshToken refreshToken = new RefreshToken(refreshTokenValue, username, expiryDate);
             RefreshToken refreshTokenSave = refreshTokenRepository.save(refreshToken);
@@ -191,4 +211,3 @@ public class JwtService {
         }
     }
 }
-
