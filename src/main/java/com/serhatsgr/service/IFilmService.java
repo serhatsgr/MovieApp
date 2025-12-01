@@ -2,6 +2,7 @@ package com.serhatsgr.service;
 
 import com.serhatsgr.dto.DtoFilm;
 import com.serhatsgr.dto.DtoFilmIU;
+import com.serhatsgr.entity.ListingType;
 
 import java.util.List;
 
@@ -9,7 +10,7 @@ public interface IFilmService {
 
     public DtoFilm addFilm(DtoFilmIU dtoFilmIU);
 
-    public List<DtoFilm> getAllFilms();
+    List<DtoFilm> getAllFilms(ListingType type);
 
     public DtoFilm getFilmById(Long id);
 

@@ -17,7 +17,7 @@ public class UserMapper {
 
         String roles = user.getAuthorities() != null && !user.getAuthorities().isEmpty()
                 ? user.getAuthorities().stream()
-                .map(Role::name)
+                .map(a -> a.getAuthority())
                 .collect(Collectors.joining(", "))
                 : "NO_ROLE";
 

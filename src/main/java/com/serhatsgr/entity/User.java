@@ -1,17 +1,22 @@
 package com.serhatsgr.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 @Entity
 @Table(name = "users")
+@Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class User implements UserDetails {
 
     @Id
@@ -24,13 +29,24 @@ public class User implements UserDetails {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String password;
 
-    private boolean accountNonExpired;
-    private boolean isEnabled;
-    private boolean accountNonLocked;
-    private boolean credentialsNonExpired;
+
+    private boolean accountNonExpired = true;
+    private boolean accountNonLocked = true;
+    private boolean credentialsNonExpired = true;
+
+
+    @Column(name = "is_enabled", nullable = false)
+    private boolean isEnabled = true;
+
+
+    @Column(length = 20)
+    private String provider; // "LOCAL" veya "GOOGLE"
+
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
 
     @ElementCollection(targetClass = Role.class, fetch = FetchType.EAGER)
     @JoinTable(name = "authorities", joinColumns = @JoinColumn(name = "user_id"))
@@ -38,37 +54,10 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private Set<Role> authorities = new HashSet<>();
 
-    // ===== Constructors =====
-    public User() {
-    }
-
-    public User(Long id, String username, String email, String password,
-                boolean accountNonExpired, boolean isEnabled,
-                boolean accountNonLocked, boolean credentialsNonExpired,
-                Set<Role> authorities) {
-        this.id = id;
-        this.username = username;
-        this.email = email;
-        this.password = password;
-        this.accountNonExpired = accountNonExpired;
-        this.isEnabled = isEnabled;
-        this.accountNonLocked = accountNonLocked;
-        this.credentialsNonExpired = credentialsNonExpired;
-        this.authorities = authorities;
-    }
-
-    // ===== Getters =====
-    public Long getId() {
-        return id;
-    }
 
     @Override
-    public String getUsername() {
-        return username;
-    }
-
-    public String getEmail() {
-        return email;
+    public Collection<Role> getAuthorities() {
+        return authorities;
     }
 
     @Override
@@ -76,94 +65,28 @@ public class User implements UserDetails {
         return password;
     }
 
+    @Override
+    public String getUsername() {
+        return username;
+    }
+
+    @Override
     public boolean isAccountNonExpired() {
         return accountNonExpired;
     }
 
-    public boolean isEnabled() {
-        return isEnabled;
-    }
-
+    @Override
     public boolean isAccountNonLocked() {
         return accountNonLocked;
     }
 
+    @Override
     public boolean isCredentialsNonExpired() {
         return credentialsNonExpired;
     }
 
     @Override
-    public Collection<Role> getAuthorities() {
-        return authorities;
-    }
-
-    public Set<Role> getAuthoritySet() {
-        return authorities;
-    }
-
-    // ===== Setters =====
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public void setAccountNonExpired(boolean accountNonExpired) {
-        this.accountNonExpired = accountNonExpired;
-    }
-
-    public void setEnabled(boolean enabled) {
-        isEnabled = enabled;
-    }
-
-    public void setAccountNonLocked(boolean accountNonLocked) {
-        this.accountNonLocked = accountNonLocked;
-    }
-
-    public void setCredentialsNonExpired(boolean credentialsNonExpired) {
-        this.credentialsNonExpired = credentialsNonExpired;
-    }
-
-    public void setAuthorities(Set<Role> authorities) {
-        this.authorities = authorities;
-    }
-
-    // ===== equals & hashCode =====
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof User)) return false;
-        User user = (User) o;
-        return Objects.equals(id, user.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
-    }
-
-    // ===== toString =====
-    @Override
-    public String toString() {
-        return "User{" +
-                "id=" + id +
-                ", username='" + username + '\'' +
-                ", email='" + email + '\'' +
-                ", accountNonExpired=" + accountNonExpired +
-                ", accountNonLocked=" + accountNonLocked +
-                ", credentialsNonExpired=" + credentialsNonExpired +
-                ", isEnabled=" + isEnabled +
-                ", authorities=" + authorities +
-                '}';
+    public boolean isEnabled() {
+        return isEnabled;
     }
 }

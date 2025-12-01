@@ -1,4 +1,5 @@
 package com.serhatsgr.dto;
+import com.serhatsgr.entity.ListingType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -29,5 +30,7 @@ public class DtoFilm {
     private Double averageRating;
 
     private Integer ratingCount;
+
+    private ListingType listingType;
 
 }

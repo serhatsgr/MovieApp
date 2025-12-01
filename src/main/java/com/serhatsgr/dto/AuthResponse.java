@@ -1,22 +1,18 @@
 package com.serhatsgr.dto;
 
-
 public record AuthResponse(
         String accessToken,
         String refreshToken,
+        String username,
+        String role,
         String message,
         boolean success
-
 ) {
+    public static AuthResponse success(String accessToken, String refreshToken, String username, String role, String message) {
+        return new AuthResponse(accessToken, refreshToken, username, role, message, true);
+    }
 
-    //factory methods
-
-   public static AuthResponse success(String accessToken, String refreshToken, String message) {
-       return new AuthResponse(accessToken, refreshToken, message, true);
-   }
-
-   public static AuthResponse error(String message) {
-       return new AuthResponse(null, null, message, false);
-   }
-
+    public static AuthResponse error(String message) {
+        return new AuthResponse(null, null, null, null, message, false);
+    }
 }

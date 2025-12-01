@@ -1,6 +1,7 @@
 package com.serhatsgr.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.serhatsgr.entity.ListingType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -51,5 +52,8 @@ public class DtoFilmIU {
     @NotEmpty(message = "{film.categoryIds.notEmpty}")
     @Size(min = 1, message = "{film.categoryIds.size}")
     private List<Long> categoryIds;
+
+    @NotNull(message = "İçerik tipi boş olamaz (VISION, ARCHIVE, SERIES)")
+    private ListingType listingType;
 }
 

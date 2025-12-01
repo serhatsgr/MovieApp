@@ -1,12 +1,13 @@
 package com.serhatsgr.controller.Impl;
 
 import com.serhatsgr.controller.IFilmController;
+import com.serhatsgr.dto.ApiSuccess;
 import com.serhatsgr.dto.DtoFilm;
 import com.serhatsgr.dto.DtoFilmIU;
+import com.serhatsgr.entity.ListingType;
 import com.serhatsgr.exception.BaseException;
 import com.serhatsgr.exception.ErrorMessage;
 import com.serhatsgr.exception.MessageType;
-import com.serhatsgr.dto.ApiSuccess;
 import com.serhatsgr.service.IFilmService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -43,21 +44,24 @@ public class FilmControllerImpl implements IFilmController {
     // --- GET ALL ---
     @GetMapping(path = "/list")
     @Override
-    public ResponseEntity<ApiSuccess<List<DtoFilm>>> getAllFilms() {
+    public ResponseEntity<ApiSuccess<List<DtoFilm>>> getAllFilms(
+            @RequestParam(required = false) ListingType type
+    ) {
         try {
-            List<DtoFilm> films = filmService.getAllFilms();
-            return ResponseEntity.ok(ApiSuccess.of("Filmler başarıyla listelendi.", films));
+            List<DtoFilm> films = filmService.getAllFilms(type);
+            return ResponseEntity.ok(ApiSuccess.of("İçerikler başarıyla listelendi.", films));
         } catch (BaseException e) {
             throw e;
         } catch (Exception e) {
             throw new BaseException(
-                    new ErrorMessage(MessageType.INTERNAL_ERROR, "Filmler listelenirken hata oluştu")
+                    new ErrorMessage(MessageType.INTERNAL_ERROR, "İçerikler listelenirken hata oluştu")
             );
         }
     }
 
     // --- GET BY ID ---
     @GetMapping(path = "/list/{id}")
+    @Override
     public ResponseEntity<ApiSuccess<DtoFilm>> getFilmById(@PathVariable(name = "id") Long id) {
         try {
             DtoFilm film = filmService.getFilmById(id);

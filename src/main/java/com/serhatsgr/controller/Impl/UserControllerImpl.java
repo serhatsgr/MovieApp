@@ -5,9 +5,13 @@ import com.serhatsgr.dto.*;
 import com.serhatsgr.exception.BaseException;
 import com.serhatsgr.exception.ErrorMessage;
 import com.serhatsgr.exception.MessageType;
+import com.serhatsgr.service.Impl.GoogleAuthService;
 import com.serhatsgr.service.Impl.JwtService;
 import com.serhatsgr.service.Impl.PasswordResetService;
 import com.serhatsgr.service.Impl.UserService;
+import com.serhatsgr.entity.User;
+import com.serhatsgr.entity.Role;
+import com.serhatsgr.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +19,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,12 +35,20 @@ public class UserControllerImpl implements IUserController {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordResetService passwordResetService;
+    private final GoogleAuthService googleAuthService; // EKLENDİ
+    private final UserRepository userRepository; // Role bilgisi için
 
-    public UserControllerImpl(UserService userService, JwtService jwtService, AuthenticationManager authenticationManager, PasswordResetService passwordResetService) {
+    public UserControllerImpl(UserService userService, JwtService jwtService,
+                              AuthenticationManager authenticationManager,
+                              PasswordResetService passwordResetService,
+                              GoogleAuthService googleAuthService,
+                              UserRepository userRepository) {
         this.userService = userService;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.passwordResetService = passwordResetService;
+        this.googleAuthService = googleAuthService;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/login")
@@ -47,93 +60,65 @@ public class UserControllerImpl implements IUserController {
             );
 
             if (!authentication.isAuthenticated()) {
-                log.warn("Kullanıcı doğrulaması başarısız: {}", request.username());
-                throw new BaseException(new ErrorMessage(
-                        MessageType.AUTHENTICATION_FAILED,
-                        "Geçersiz kullanıcı adı veya şifre"
-                ));
+                throw new BaseException(new ErrorMessage(MessageType.AUTHENTICATION_FAILED, "Geçersiz kullanıcı adı veya şifre"));
             }
 
             TokenPairDto tokenPair = jwtService.generateTokenPair(request.username());
-            log.info("Kullanıcı başarıyla giriş yaptı: {}", request.username());
+
+            // Rolü bul
+            User user = userRepository.findByUsername(request.username()).orElseThrow();
+            String role = user.getAuthorities().stream().findFirst().map(GrantedAuthority::getAuthority).orElse("ROLE_USER");
 
             AuthResponse authResponse = AuthResponse.success(
                     tokenPair.accessToken(),
                     tokenPair.refreshToken(),
+                    user.getUsername(),
+                    role,
                     "Giriş başarılı"
             );
 
             return ResponseEntity.ok(ApiSuccess.of("Giriş başarılı", authResponse));
 
         } catch (BadCredentialsException | UsernameNotFoundException e) {
-            log.warn("Authentication failed for user: {}", request.username());
-            throw new BaseException(new ErrorMessage(
-                    MessageType.AUTHENTICATION_FAILED,
-                    "Geçersiz kullanıcı adı veya şifre"
-            ));
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Unexpected error during login for user: {}", request.username(), e);
-            throw new BaseException(new ErrorMessage(
-                    MessageType.INTERNAL_ERROR,
-                    "Giriş sırasında bir hata oluştu"
-            ));
+            throw new BaseException(new ErrorMessage(MessageType.AUTHENTICATION_FAILED, "Geçersiz kullanıcı adı veya şifre"));
         }
     }
+
+    @PostMapping("/google")
+    public ResponseEntity<ApiSuccess<AuthResponse>> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
+        AuthResponse response = googleAuthService.authenticateWithGoogle(request.idToken());
+        return ResponseEntity.ok(ApiSuccess.of("Google girişi başarılı", response));
+    }
+
 
     @PostMapping("/refresh-token")
     @Override
-    public ResponseEntity<ApiSuccess<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest refreshTokenRequest) {
-        try {
-            if (refreshTokenRequest == null || refreshTokenRequest.token() == null || refreshTokenRequest.token().isBlank()) {
-                throw new BaseException(new ErrorMessage(MessageType.BAD_REQUEST, "Refresh token gereklidir"));
-            }
+    public ResponseEntity<ApiSuccess<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        String username = jwtService.refreshAccessToken(request.token());
+        TokenPairDto newTokenPair = jwtService.generateTokenPair(username);
 
-            String username = jwtService.refreshAccessToken(refreshTokenRequest.token());
-            TokenPairDto newTokenPair = jwtService.generateTokenPair(username);
+        User user = userRepository.findByUsername(username).orElseThrow();
+        String role = user.getAuthorities().stream().findFirst().map(GrantedAuthority::getAuthority).orElse("ROLE_USER");
 
-            AuthResponse authResponse = AuthResponse.success(
-                    newTokenPair.accessToken(),
-                    newTokenPair.refreshToken(),
-                    "Token başarıyla yenilendi"
-            );
-
-            return ResponseEntity.ok(ApiSuccess.of("Token başarıyla yenilendi", authResponse));
-
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Token yenileme hatası: {}", e.getMessage(), e);
-            throw new BaseException(new ErrorMessage(MessageType.INTERNAL_ERROR, "Token yenilenirken hata oluştu: " + e.getMessage()));
-        }
+        AuthResponse authResponse = AuthResponse.success(
+                newTokenPair.accessToken(),
+                newTokenPair.refreshToken(),
+                username,
+                role,
+                "Token başarıyla yenilendi"
+        );
+        return ResponseEntity.ok(ApiSuccess.of("Token başarıyla yenilendi", authResponse));
     }
+
 
     @PostMapping("/register")
     @Override
     public ResponseEntity<ApiSuccess<CreateUserResponse>> register(@Valid @RequestBody CreateUserRequest request) {
-        try {
-            log.info("User registration attempt: {}", request.username());
-            CreateUserResponse response = userService.createUser(request);
-            log.info("User registered successfully: {}", request.username());
-            return ResponseEntity.ok(ApiSuccess.of("Kullanıcı başarıyla oluşturuldu", response));
-        } catch (BaseException e) {
-            throw e;
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.warn("Data integrity violation during registration for user: {}", request.username());
-            throw new BaseException(new ErrorMessage(
-                    MessageType.DUPLICATE_RESOURCE,
-                    "Bu kullanıcı adı veya email adresi zaten kullanımda"
-            ));
-        } catch (Exception e) {
-            log.error("Unexpected error during registration for user: {}", request.username(), e);
-            throw new BaseException(new ErrorMessage(
-                    MessageType.INTERNAL_ERROR,
-                    "Kullanıcı kaydedilirken hata oluştu"
-            ));
-        }
+        CreateUserResponse response = userService.createUser(request);
+        return ResponseEntity.ok(ApiSuccess.of("Kullanıcı başarıyla oluşturuldu", response));
     }
 
+    // ... forgotPassword, verifyOtp, resetPassword aynı kalır.
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiSuccess<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         passwordResetService.initiatePasswordReset(request);
@@ -149,6 +134,6 @@ public class UserControllerImpl implements IUserController {
     @PostMapping("/reset-password")
     public ResponseEntity<ApiSuccess<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         passwordResetService.resetPassword(request);
-        return ResponseEntity.ok(ApiSuccess.of("Şifreniz başarıyla güncellendi. Giriş yapabilirsiniz.", "Success"));
+        return ResponseEntity.ok(ApiSuccess.of("Şifreniz başarıyla güncellendi.", "Success"));
     }
 }

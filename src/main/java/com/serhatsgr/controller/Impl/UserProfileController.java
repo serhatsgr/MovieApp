@@ -4,6 +4,7 @@ import com.serhatsgr.dto.ApiSuccess;
 import com.serhatsgr.dto.AuthResponse;
 import com.serhatsgr.dto.TokenPairDto;
 import com.serhatsgr.dto.UpdateUserRequest;
+import com.serhatsgr.entity.Role;
 import com.serhatsgr.entity.User;
 import com.serhatsgr.service.Impl.JwtService;
 import com.serhatsgr.service.Impl.UserService;
@@ -27,17 +28,25 @@ public class UserProfileController {
             @Valid @RequestBody UpdateUserRequest request,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        // 1. Kullanıcıyı güncelle
+
         User updatedUser = userService.updateUser(userDetails.getUsername(), request);
 
-        // 2. Kullanıcı adı değiştiği için Token GEÇERSİZ olur. Yeni token üretmeliyiz.
+
         TokenPairDto newTokenPair = jwtService.generateTokenPair(updatedUser.getUsername());
 
-        AuthResponse response = new AuthResponse(
+
+        String role = updatedUser.getAuthorities().stream()
+                .findFirst()
+                .map(Role::name)
+                .orElse("ROLE_USER");
+
+
+        AuthResponse response = AuthResponse.success(
                 newTokenPair.accessToken(),
                 newTokenPair.refreshToken(),
-                "Profil başarıyla güncellendi",
-                true
+                updatedUser.getUsername(),
+                role,
+                "Profil başarıyla güncellendi"
         );
 
         return ResponseEntity.ok(ApiSuccess.of("Güncelleme başarılı", response));

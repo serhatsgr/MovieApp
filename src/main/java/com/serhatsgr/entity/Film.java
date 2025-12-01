@@ -33,6 +33,10 @@ public class Film {
     @Column(nullable = false, unique = true, length = 500)
     private String trailerUrl;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ListingType listingType = ListingType.VISION;
+
     @ManyToMany
     @JoinTable(
             name = "film_category",
@@ -52,7 +56,7 @@ public class Film {
 
 
     public Film(Long id, String title, String description, LocalDate releaseDate,
-                String posterUrl, String trailerUrl,
+                String posterUrl, String trailerUrl, ListingType listingType,
                 Set<Category> categories, Set<Comment> comments) {
         this.id = id;
         this.title = title;
@@ -60,6 +64,7 @@ public class Film {
         this.releaseDate = releaseDate;
         this.posterUrl = posterUrl;
         this.trailerUrl = trailerUrl;
+        this.listingType = listingType;
         this.categories = categories;
         this.comments = comments;
     }
@@ -120,6 +125,14 @@ public class Film {
 
     public void setCategories(Set<Category> categories) {
         this.categories = categories;
+    }
+
+    public ListingType getListingType() {
+        return listingType;
+    }
+
+    public void setListingType(ListingType listingType) {
+        this.listingType = listingType;
     }
 
     public Set<Comment> getComments() {
@@ -190,6 +203,7 @@ public class Film {
                 ", title='" + title + '\'' +
                 ", releaseDate=" + releaseDate +
                 ", categoriesCount=" + categories.size() +
+                ", listingType=" + listingType +
                 '}';
     }
 }

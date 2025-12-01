@@ -22,6 +22,7 @@ public class FilmMapper {
         film.setReleaseDate(dto.getReleaseDate());
         film.setPosterUrl(dto.getPosterUrl());
         film.setTrailerUrl(dto.getTrailerUrl());
+        film.setListingType(dto.getListingType());
         for (Category category : categories) {
             film.addCategory(category);
         }
@@ -37,6 +38,7 @@ public class FilmMapper {
         dto.setReleaseDate(film.getReleaseDate());
         dto.setPosterUrl(film.getPosterUrl());
         dto.setTrailerUrl(film.getTrailerUrl());
+        dto.setListingType(film.getListingType());
         dto.setAverageRating(film.getAverageRating() != null ? film.getAverageRating() : 0.0);
         dto.setRatingCount(film.getRatingCount() != null ? film.getRatingCount() : 0);
 
@@ -62,6 +64,7 @@ public class FilmMapper {
         film.setReleaseDate(dto.getReleaseDate());
         film.setPosterUrl(dto.getPosterUrl());
         film.setTrailerUrl(dto.getTrailerUrl());
+        film.setListingType(dto.getListingType());
         film.setCategories(categories);
     }
 
