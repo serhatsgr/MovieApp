@@ -22,10 +22,7 @@ public class Favorite {
 
     private LocalDateTime createdAt;
 
-    // --- Constructors ---
-
     public Favorite() {
-        // JPA için boş constructor
     }
 
     public Favorite(Long id, User user, Film film, LocalDateTime createdAt) {

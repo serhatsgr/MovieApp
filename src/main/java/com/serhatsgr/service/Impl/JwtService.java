@@ -58,7 +58,6 @@ public class JwtService {
         }
     }
 
-    // GÜNCELLENEN METOD: Rolleri token içine ekliyoruz
     public String generateAccessToken(String username){
         Map<String, Object> claims = new HashMap<>();
         try {
@@ -92,8 +91,6 @@ public class JwtService {
             throw new BaseException(new ErrorMessage(MessageType.INTERNAL_ERROR, "Token oluşturulamadı"));
         }
     }
-
-    // ... Diğer metodlar aynı kalacak (extractAllClaim, extractUsername, vs.) ...
 
     private Claims extractAllClaim(String token){
         try {

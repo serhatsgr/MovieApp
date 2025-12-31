@@ -23,7 +23,7 @@ public class CategoryController implements ICategoryController {
         this.categoryService = categoryService;
     }
 
-    // --- CREATE ---
+    // category create
     @PostMapping("/create")
     @Override
     public ResponseEntity<ApiSuccess<DtoCategory>> createCategory(@RequestBody DtoCategoryIU dtoCategoryIU) {
@@ -39,7 +39,7 @@ public class CategoryController implements ICategoryController {
         }
     }
 
-    // --- GET ALL ---
+    // category list
     @GetMapping("/list")
     @Override
     public ResponseEntity<ApiSuccess<List<DtoCategory>>> getAllCategories() {
@@ -55,7 +55,7 @@ public class CategoryController implements ICategoryController {
         }
     }
 
-    // --- GET BY ID ---
+    // category get by id
     @GetMapping("/list/{id}")
     @Override
     public ResponseEntity<ApiSuccess<DtoCategory>> getCategoryById(@PathVariable Long id) {
@@ -71,7 +71,7 @@ public class CategoryController implements ICategoryController {
         }
     }
 
-    // --- DELETE ---
+    // category delete
     @DeleteMapping("/delete/{id}")
     @Override
     public ResponseEntity<ApiSuccess<String>> deleteCategory(@PathVariable Long id) {
@@ -87,7 +87,7 @@ public class CategoryController implements ICategoryController {
         }
     }
 
-    // --- UPDATE ---
+    // category update
     @PutMapping("/update/{id}")
     @Override
     public ResponseEntity<ApiSuccess<DtoCategory>> updateCategory(

@@ -37,7 +37,7 @@ public class RatingService {
         rating.setScore(request.score());
         ratingRepository.save(rating);
 
-        // Denormalize alanları güncelle
+        // Denormalize alanları güncelleme
         updateFilmRatingStats(film);
     }
 
@@ -51,7 +51,6 @@ public class RatingService {
                 .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.RESOURCE_NOT_FOUND, "Oylama bulunamadı")));
 
         ratingRepository.delete(rating);
-
         Film film = filmRepository.findById(filmId).orElseThrow();
         updateFilmRatingStats(film);
     }

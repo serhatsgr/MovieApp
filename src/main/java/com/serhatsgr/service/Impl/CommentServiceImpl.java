@@ -97,7 +97,7 @@ public class CommentServiceImpl implements ICommentService {
         return mapToResponse(updatedComment);
     }
 
-    // --- Yorum Silme (Soft vs Hard Delete) ---
+    // Yorum Silme (Soft vs Hard Delete) ---
     @Override
     @Transactional
     public void deleteComment(Long commentId, String username) {
@@ -111,9 +111,9 @@ public class CommentServiceImpl implements ICommentService {
             throw new BaseException(new ErrorMessage(MessageType.FORBIDDEN, "Bu yorumu silme yetkiniz yok"));
         }
 
-        // MANTIK: Eğer bu yorumun alt yanıtları varsa, yorumu tamamen silmek ağacı bozar.
-        // Bu yüzden "Soft Delete" yapıyoruz (İçeriği gizliyoruz, kaydı tutuyoruz).
-        // Alt yanıt yoksa "Hard Delete" yapıyoruz (Veritabanından siliyoruz).
+        //eğer yorumun yanıtı varsa o yorumu tamamen silmek agacı bozar
+        // bu sebeple yanıtı olan yorumları Soft Delete ile siliyoruz(içerik gizliyoruz.)
+        //yorumun yanıtı yoksa tamamen siliyoruz yani: Hard Delete
         if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
             comment.setDeleted(true);
             comment.setContent("Bu yorum silindi."); // İçeriği temizle
@@ -131,7 +131,7 @@ public class CommentServiceImpl implements ICommentService {
 
         List<Comment> allComments = commentRepository.findAllByFilm(film);
 
-        // Hepsini DTO'ya çevir
+
         List<CommentResponse> allDtos = allComments.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -154,10 +154,10 @@ public class CommentServiceImpl implements ICommentService {
         }
 
         // SIRALAMA:
-        // 1. Ana yorumlar: En YENİ en üstte
+        // 1. Ana yorumlar: En yeni yorum en üstte olmalı
         rootComments.sort((c1, c2) -> c2.createdAt().compareTo(c1.createdAt()));
 
-        // 2. Alt yorumlar: En ESKİ en üstte (Konuşma sırası)
+        // 2. Alt yorumlar: En eski en üstte olmalı
         allDtos.forEach(dto ->
                 dto.replies().sort((r1, r2) -> r1.createdAt().compareTo(r2.createdAt()))
         );
@@ -166,7 +166,7 @@ public class CommentServiceImpl implements ICommentService {
     }
 
     private CommentResponse mapToResponse(Comment comment) {
-        // ... (Ban/Delete kontrolleri aynı) ...
+
         boolean isAuthorBanned = !comment.getUser().isEnabled();
         boolean isDeleted = comment.isDeleted();
         String displayContent = isDeleted ? "🗑️ [Silindi]" : (isAuthorBanned ? "🚫 [Banlı]" : comment.getContent());

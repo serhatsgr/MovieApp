@@ -23,4 +23,6 @@ public interface FilmRepository extends JpaRepository<Film, Long> {
 
     List<Film> findAllByListingType(ListingType listingType);
 
+    List<Film> findByTitleContainingIgnoreCase(String title);
+
 }

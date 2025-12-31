@@ -19,4 +19,6 @@ public interface IFilmController {
     ResponseEntity<ApiSuccess<String>> deleteFilmById(Long id);
 
     ResponseEntity<ApiSuccess<DtoFilm>> updateFilm(DtoFilmIU dtoFilm, Long id);
+
+     ResponseEntity<ApiSuccess<List<DtoFilm>>>searchFilms(String query);
 }

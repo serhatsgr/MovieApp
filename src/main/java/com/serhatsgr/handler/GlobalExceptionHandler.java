@@ -1,5 +1,6 @@
 package com.serhatsgr.handler;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.serhatsgr.exception.*;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -13,23 +14,20 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.nio.file.AccessDeniedException;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,7 +35,6 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
     private final MessageSource messageSource;
 
     @Autowired
@@ -51,20 +48,10 @@ public class GlobalExceptionHandler {
         return (trace != null && !trace.isBlank()) ? trace : UUID.randomUUID().toString();
     }
 
-    private String getHostNameSafe() {
-        try {
-            return InetAddress.getLocalHost().getHostName();
-        } catch (UnknownHostException e) {
-            logger.warn("Unable to resolve host name: {}", e.getMessage());
-            return null;
-        }
-    }
-
     private String getLocalizedMessage(String code, Object... args) {
         try {
             return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
         } catch (Exception ex) {
-            logger.debug("MessageSource lookup failed for code {}: {}", code, ex.getMessage());
             return code;
         }
     }
@@ -75,7 +62,7 @@ public class GlobalExceptionHandler {
         apiError.setError(status.getReasonPhrase());
         apiError.setCode(code);
         apiError.setMessage(message);
-        apiError.setTimestamp(java.time.Instant.now());
+        apiError.setTimestamp(LocalDateTime.now());
         apiError.setPath(path);
         apiError.setTraceId(traceId);
         apiError.setDetails(details);
@@ -84,215 +71,148 @@ public class GlobalExceptionHandler {
 
     // --- Handlers ---
 
-    // BaseException
+    // 1. JSON Format Hataları (Tarih, Sayı vb.) - SADELEŞTİRİLDİ
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleHttpMessageNotReadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        // Varsayılan mesaj
+        String message = "Girdiğiniz verilerde format hatası var.";
+
+        // Jackson hatasını kontrol et
+        if (ex.getCause() instanceof InvalidFormatException) {
+            InvalidFormatException ife = (InvalidFormatException) ex.getCause();
+
+            // Tarih hatasıysa (LocalDate)
+            if (ife.getTargetType().equals(LocalDate.class)) {
+                message = "Geçersiz bir tarih girdiniz. Lütfen (Yıl-Ay-Gün) formatında giriniz.";
+            }
+            // Sayı hatasıysa (Long, Integer, int, long vb.)
+            else if (Number.class.isAssignableFrom(ife.getTargetType()) ||
+                    ife.getTargetType().equals(int.class) ||
+                    ife.getTargetType().equals(long.class)) {
+                message = "Bu alana sadece sayısal değer girebilirsiniz.";
+            }
+            // Enum hatasıysa (Seçenekler)
+            else if (Enum.class.isAssignableFrom(ife.getTargetType())) {
+                message = "Seçtiğiniz değer geçerli seçenekler arasında değil.";
+            }
+        }
+
+        // Loglara teknik hatayı basıyoruz, kullanıcıya sade mesajı dönüyoruz
+        logger.warn("JSON Parse Error: {}", ex.getMessage());
+
+        ApiError apiError = buildApiError(
+                HttpStatus.BAD_REQUEST,
+                message,
+                MessageType.VALIDATION_ERROR.getCode(),
+                request.getRequestURI(),
+                resolveTraceId(request),
+                null
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiError);
+    }
+
+    // 2. BaseException (Özel İş Kuralları)
     @ExceptionHandler(BaseException.class)
     public ResponseEntity<ApiError> handleBaseException(BaseException ex, HttpServletRequest request) {
         ErrorMessage em = ex.getErrorMessage();
-        MessageType mt = em != null ? em.getMessageType() : null;
+        MessageType mt = em != null ? em.getMessageType() : MessageType.GENERAL_EXCEPTION;
         HttpStatus status = (mt != null) ? mt.getHttpStatus() : HttpStatus.BAD_REQUEST;
-        String message = (mt != null) ? getLocalizedMessage(mt.getMessageKey()) : "Beklenmeyen bir hata oluştu";
         String code = (mt != null) ? mt.getCode() : "9999";
 
-        logger.warn("BaseException -> code: {}, message: {}, path: {}", code, message, request.getRequestURI());
+        String baseMessage = (mt != null) ? getLocalizedMessage(mt.getMessageKey()) : "Hata oluştu";
+        // Özel mesaj varsa onu kullan, yoksa genel mesajı kullan
+        String finalMessage = (em != null && em.getOfStatic() != null) ? em.getOfStatic() : baseMessage;
 
-        Object details = (em != null && em.getOfStatic() != null && !em.getOfStatic().trim().isEmpty()) ? em.getOfStatic() : null;
-
-        ApiError apiError = buildApiError(status, message, code, request.getRequestURI(), resolveTraceId(request), details);
+        ApiError apiError = buildApiError(status, finalMessage, code, request.getRequestURI(), resolveTraceId(request), null);
         return ResponseEntity.status(status).body(apiError);
     }
 
-    // Validation: @Valid
+    // 3. Validasyon Hataları (@Valid)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {
-        boolean allFieldsEmpty = ex.getBindingResult().getFieldErrors().stream()
-                .allMatch(error -> {
-                    Object rejected = error.getRejectedValue();
-                    return rejected == null || (rejected instanceof String && ((String) rejected).isBlank());
-                });
 
-        if (allFieldsEmpty) {
-            ErrorMessage errorMessage = new ErrorMessage(MessageType.BAD_REQUEST, "Film bilgisi boş olamaz");
-            Map<String, List<String>> details = Map.of("film", List.of("Film bilgisi boş olamaz"));
-
-            ApiError apiError = buildApiError(
-                    HttpStatus.BAD_REQUEST,
-                    errorMessage.prepareErrorMessage(),
-                    errorMessage.getMessageType().getCode(),
-                    request.getRequestURI(),
-                    resolveTraceId(request),
-                    details
-            );
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiError);
+        String errorMessage = "Validasyon hatası";
+        if (!ex.getBindingResult().getFieldErrors().isEmpty()) {
+            errorMessage = ex.getBindingResult().getFieldErrors().get(0).getDefaultMessage();
         }
 
-        Map<String, List<String>> validationErrors = ex.getBindingResult().getFieldErrors()
+        // Detayları yine de structured olarak ekleyelim (Frontend isterse kullanır)
+        Map<String, List<String>> validationDetails = ex.getBindingResult().getFieldErrors()
                 .stream()
                 .collect(Collectors.groupingBy(
                         fieldError -> fieldError.getField(),
                         Collectors.mapping(fieldError -> fieldError.getDefaultMessage(), Collectors.toList())
                 ));
 
-        ErrorMessage errorMessage = new ErrorMessage(MessageType.VALIDATION_ERROR, "Doğrulama hatası.");
         ApiError apiError = buildApiError(
                 HttpStatus.BAD_REQUEST,
-                errorMessage.prepareErrorMessage(),
-                errorMessage.getMessageType().getCode(),
+                errorMessage,
+                MessageType.VALIDATION_ERROR.getCode(),
                 request.getRequestURI(),
                 resolveTraceId(request),
-                validationErrors
+                validationDetails
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiError);
     }
 
-    // ConstraintViolation
+    // 4. Constraint Violation
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiError> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
-        Map<String, List<String>> errors = new HashMap<>();
-        for (ConstraintViolation<?> cv : ex.getConstraintViolations()) {
-            String path = cv.getPropertyPath().toString();
-            errors.computeIfAbsent(path, k -> new ArrayList<>()).add(cv.getMessage());
-        }
-        MessageType mt = MessageType.VALIDATION_ERROR;
-        String message = getLocalizedMessage(mt.getMessageKey());
-        ApiError apiError = buildApiError(HttpStatus.BAD_REQUEST, message, mt.getCode(), request.getRequestURI(), resolveTraceId(request), errors);
+        String message = ex.getConstraintViolations().stream()
+                .map(ConstraintViolation::getMessage)
+                .findFirst()
+                .orElse("Validasyon hatası");
 
-        logger.info("Constraint violations: {}", errors);
+        ApiError apiError = buildApiError(HttpStatus.BAD_REQUEST, message, MessageType.VALIDATION_ERROR.getCode(), request.getRequestURI(), resolveTraceId(request), null);
         return ResponseEntity.badRequest().body(apiError);
     }
 
-    // Eksik parametre
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ApiError> handleMissingServletRequestParameter(MissingServletRequestParameterException ex, HttpServletRequest request) {
-        String message = String.format("'%s' parametresi eksik.", ex.getParameterName());
-        Map<String, Object> details = Map.of(
-                "field", ex.getParameterName(),
-                "expectedType", ex.getParameterType()
-        );
-        ApiError apiError = buildApiError(HttpStatus.BAD_REQUEST, message, MessageType.BAD_REQUEST.getCode(), request.getRequestURI(), resolveTraceId(request), details);
-        return ResponseEntity.badRequest().body(apiError);
-    }
-
-    // PathVariable veya query param tip hatası
+    // 5. Parametre Hataları
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiError> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
-        String field = ex.getName();
-        String invalidValue = ex.getValue() != null ? ex.getValue().toString() : "null";
+        String message = "Girdiğiniz parametre formatı hatalı.";
+        ApiError apiError = buildApiError(HttpStatus.BAD_REQUEST, message, MessageType.VALIDATION_ERROR.getCode(), request.getRequestURI(), resolveTraceId(request), null);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiError);
+    }
 
-        String expectedType;
-        if (ex.getRequiredType() != null) {
-            Class<?> type = ex.getRequiredType();
-            if (type.equals(Long.class) || type.equals(Integer.class)) {
-                expectedType = "sayısal bir değer (ör: 123)";
-            } else if (type.equals(Boolean.class)) {
-                expectedType = "true veya false";
-            } else {
-                expectedType = type.getSimpleName();
-            }
+    // 6. Security Hataları
+    @ExceptionHandler({AuthenticationException.class, JwtException.class, ExpiredJwtException.class, AccessDeniedException.class})
+    public ResponseEntity<ApiError> handleSecurityExceptions(Exception ex, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        String message = "Oturum hatası";
+        String code = MessageType.UNAUTHORIZED.getCode();
+
+        if (ex instanceof AccessDeniedException) {
+            status = HttpStatus.FORBIDDEN;
+            message = "Bu işlem için yetkiniz yok.";
+            code = MessageType.FORBIDDEN.getCode();
+        } else if (ex instanceof ExpiredJwtException) {
+            message = "Oturum süreniz doldu.";
+            code = MessageType.TOKEN_EXPIRED.getCode();
+        } else if (ex instanceof DisabledException) {
+            message = "Hesabınız erişime kapatılmıştır";
+            code = "ACCOUNT_DISABLED";
         } else {
-            expectedType = "beklenen tür";
+            message = "Giriş yapmanız gerekiyor.";
         }
 
-        String message = String.format("'%s' parametresi geçersiz. Beklenen: %s. Girilen değer: '%s'.", field, expectedType, invalidValue);
+        ApiError apiError = buildApiError(status, message, code, request.getRequestURI(), resolveTraceId(request), null);
+        return ResponseEntity.status(status).body(apiError);
+    }
 
-        Map<String, Object> details = Map.of(
-                "field", field,
-                "expectedType", expectedType,
-                "invalidValue", invalidValue
+    // 7. Genel Hata
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> handleAll(Exception ex, HttpServletRequest request) {
+        logger.error("Unexpected Error: ", ex);
+        ApiError apiError = buildApiError(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Sunucuda geçici bir sorun oluştu.",
+                MessageType.INTERNAL_ERROR.getCode(),
+                request.getRequestURI(),
+                resolveTraceId(request),
+                null
         );
-
-        ApiError apiError = buildApiError(HttpStatus.BAD_REQUEST, message, MessageType.VALIDATION_ERROR.getCode(), request.getRequestURI(), resolveTraceId(request), details);
-
-        logger.warn("Path variable type mismatch: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiError);
-    }
-
-    // JSON parse hataları (tarih, int/string vb.)
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiError> handleHttpMessageNotReadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
-        String fieldName = "";
-        String expectedType = "";
-        String invalidValue = "unknown";
-
-        Throwable cause = ex.getCause();
-        if (cause instanceof InvalidFormatException ife && !ife.getPath().isEmpty()) {
-            fieldName = ife.getPath().get(0).getFieldName();
-            Class<?> targetType = ife.getTargetType();
-
-            if (targetType.equals(LocalDate.class)) {
-                expectedType = "yyyy-MM-dd formatında bir tarih";
-            } else if (targetType.equals(Long.class) || targetType.equals(Integer.class)) {
-                expectedType = "sayısal bir değer (ör: 123)";
-            } else if (targetType.equals(Boolean.class)) {
-                expectedType = "true veya false";
-            } else if (Enum.class.isAssignableFrom(targetType)) {
-                expectedType = "geçerli bir enum değeri";
-            } else {
-                expectedType = targetType.getSimpleName();
-            }
-
-            invalidValue = String.valueOf(ife.getValue());
-        }
-
-        String message = fieldName.isEmpty()
-                ? "Geçersiz veri formatı."
-                : String.format("'%s' alanı geçersiz. Beklenen: %s. Girilen değer: '%s'.", fieldName, expectedType, invalidValue);
-
-        Map<String, Object> details = Map.of(
-                "field", fieldName,
-                "expectedType", expectedType,
-                "invalidValue", invalidValue
-        );
-
-        ApiError apiError = buildApiError(HttpStatus.BAD_REQUEST, message, MessageType.VALIDATION_ERROR.getCode(), request.getRequestURI(), resolveTraceId(request), details);
-
-        logger.warn("Invalid JSON format: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiError);
-    }
-
-    // Diğer exceptionlar (Authentication, AccessDenied, JWT, DataIntegrity, NoHandlerFound vb.)
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
-        MessageType mt = MessageType.FORBIDDEN;
-        String message = getLocalizedMessage(mt.getMessageKey());
-        ApiError apiError = buildApiError(HttpStatus.FORBIDDEN, message, mt.getCode(), request.getRequestURI(), resolveTraceId(request), null);
-        logger.warn("Access denied: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(apiError);
-    }
-
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ApiError> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
-        MessageType mt = MessageType.AUTHENTICATION_FAILED;
-        String message = getLocalizedMessage(mt.getMessageKey());
-        ApiError apiError = buildApiError(HttpStatus.UNAUTHORIZED, message, mt.getCode(), request.getRequestURI(), resolveTraceId(request), null);
-        logger.warn("Authentication failed: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(apiError);
-    }
-
-    @ExceptionHandler({JwtException.class, ExpiredJwtException.class})
-    public ResponseEntity<ApiError> handleJwtException(Exception ex, HttpServletRequest request) {
-        MessageType mt = (ex instanceof ExpiredJwtException) ? MessageType.TOKEN_EXPIRED : MessageType.AUTHENTICATION_FAILED;
-        String message = getLocalizedMessage(mt.getMessageKey());
-        ApiError apiError = buildApiError(HttpStatus.UNAUTHORIZED, message, mt.getCode(), request.getRequestURI(), resolveTraceId(request), ex.getMessage());
-        logger.warn("JWT error: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(apiError);
-    }
-
-    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
-    public ResponseEntity<ApiError> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
-        MessageType mt = MessageType.DATA_INTEGRITY_VIOLATION;
-        String message = getLocalizedMessage(mt.getMessageKey());
-        ApiError apiError = buildApiError(HttpStatus.CONFLICT, message, mt.getCode(), request.getRequestURI(), resolveTraceId(request), "Veritabanı kısıtlaması ihlali");
-        logger.warn("Data integrity violation: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(apiError);
-    }
-
-    @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ApiError> handleNoHandler(NoHandlerFoundException ex, HttpServletRequest request) {
-        MessageType mt = MessageType.NOT_FOUND;
-        String message = getLocalizedMessage(mt.getMessageKey());
-        ApiError apiError = buildApiError(HttpStatus.NOT_FOUND, message, mt.getCode(), request.getRequestURI(), resolveTraceId(request), null);
-        logger.info("No handler found: {}", request.getRequestURI());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(apiError);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiError);
     }
 }

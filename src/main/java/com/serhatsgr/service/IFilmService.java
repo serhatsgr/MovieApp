@@ -18,4 +18,6 @@ public interface IFilmService {
 
     public DtoFilm updateFilm(DtoFilmIU dtoFilm, Long id);
 
+    public List<DtoFilm> searchFilms(String title);
+
 }

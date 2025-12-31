@@ -2,6 +2,7 @@ package com.serhatsgr.controller.Impl;
 
 import com.serhatsgr.controller.IUserController;
 import com.serhatsgr.dto.*;
+import com.serhatsgr.entity.User; // User entity importu
 import com.serhatsgr.exception.BaseException;
 import com.serhatsgr.exception.ErrorMessage;
 import com.serhatsgr.exception.MessageType;
@@ -9,9 +10,6 @@ import com.serhatsgr.service.Impl.GoogleAuthService;
 import com.serhatsgr.service.Impl.JwtService;
 import com.serhatsgr.service.Impl.PasswordResetService;
 import com.serhatsgr.service.Impl.UserService;
-import com.serhatsgr.entity.User;
-import com.serhatsgr.entity.Role;
-import com.serhatsgr.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -35,20 +33,17 @@ public class UserControllerImpl implements IUserController {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordResetService passwordResetService;
-    private final GoogleAuthService googleAuthService; // EKLENDİ
-    private final UserRepository userRepository; // Role bilgisi için
+    private final GoogleAuthService googleAuthService;
 
     public UserControllerImpl(UserService userService, JwtService jwtService,
                               AuthenticationManager authenticationManager,
                               PasswordResetService passwordResetService,
-                              GoogleAuthService googleAuthService,
-                              UserRepository userRepository) {
+                              GoogleAuthService googleAuthService) {
         this.userService = userService;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.passwordResetService = passwordResetService;
         this.googleAuthService = googleAuthService;
-        this.userRepository = userRepository;
     }
 
     @PostMapping("/login")
@@ -65,8 +60,8 @@ public class UserControllerImpl implements IUserController {
 
             TokenPairDto tokenPair = jwtService.generateTokenPair(request.username());
 
-            // Rolü bul
-            User user = userRepository.findByUsername(request.username()).orElseThrow();
+            User user = userService.getUserByUsername(request.username());
+
             String role = user.getAuthorities().stream().findFirst().map(GrantedAuthority::getAuthority).orElse("ROLE_USER");
 
             AuthResponse authResponse = AuthResponse.success(
@@ -97,7 +92,8 @@ public class UserControllerImpl implements IUserController {
         String username = jwtService.refreshAccessToken(request.token());
         TokenPairDto newTokenPair = jwtService.generateTokenPair(username);
 
-        User user = userRepository.findByUsername(username).orElseThrow();
+        User user = userService.getUserByUsername(username);
+
         String role = user.getAuthorities().stream().findFirst().map(GrantedAuthority::getAuthority).orElse("ROLE_USER");
 
         AuthResponse authResponse = AuthResponse.success(
@@ -110,7 +106,6 @@ public class UserControllerImpl implements IUserController {
         return ResponseEntity.ok(ApiSuccess.of("Token başarıyla yenilendi", authResponse));
     }
 
-
     @PostMapping("/register")
     @Override
     public ResponseEntity<ApiSuccess<CreateUserResponse>> register(@Valid @RequestBody CreateUserRequest request) {
@@ -118,7 +113,6 @@ public class UserControllerImpl implements IUserController {
         return ResponseEntity.ok(ApiSuccess.of("Kullanıcı başarıyla oluşturuldu", response));
     }
 
-    // ... forgotPassword, verifyOtp, resetPassword aynı kalır.
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiSuccess<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         passwordResetService.initiatePasswordReset(request);

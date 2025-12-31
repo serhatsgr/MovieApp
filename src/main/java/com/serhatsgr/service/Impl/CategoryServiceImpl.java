@@ -90,16 +90,17 @@ public class CategoryServiceImpl implements ICategoryService {
                         new ErrorMessage(MessageType.NOT_FOUND, "Silinecek kategori bulunamadı: " + id)
                 ));
 
-        // Film bağlantılarını kaldır
+
+        // Bir kategori silininice kategoriye ait tüm filmleri veritabanından siliyoruz.
         for (Film film : new HashSet<>(category.getFilms())) {
-            category.removeFilm(film);
-            filmRepository.save(film);
+            log.info("Kategoriye ait film siliniyor: {}", film.getTitle());
+            filmRepository.delete(film);
         }
 
         categoryRepository.delete(category);
         log.info("Kategori başarıyla silindi: {}", category.getName());
 
-        return String.format("'%s' kategorisi başarıyla silindi.", category.getName());
+        return String.format("'%s' kategorisi ve içerdiği tüm filmler başarıyla silindi.", category.getName());
     }
 
     @Override

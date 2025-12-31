@@ -23,26 +23,34 @@ public class PasswordResetService {
     private final PasswordResetTokenRepository tokenRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService; // Token revoke için
+    private final JwtService jwtService;
 
     @Transactional
     public void initiatePasswordReset(ForgotPasswordRequest request) {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.NOT_FOUND, "Bu e-posta ile kayıtlı kullanıcı bulunamadı.")));
 
-        // Rate Limit Kontrolü:
-        // Eğer önceki kodun süresi (2.5 dk) dolmadıysa yeni kod vermeyelim.
+        // Eğer kullanıcı Google ile kayıt olmuşsa şifre sıfırlama yapamaz.
+        if ("GOOGLE".equalsIgnoreCase(user.getProvider())) {
+            throw new BaseException(new ErrorMessage(
+                    MessageType.BUSINESS_RULE_VIOLATION,
+                    "Google hesabınızla giriş yapmalısınız. Şifre sıfırlama işlemi sadece e-posta ile kayıt olan kullanıcılar içindir."
+            ));
+        }
+        // -----------------------------
+
+        // Rate Limit Kontrolü
         tokenRepository.findByUser(user).ifPresent(t -> {
-            if (!t.isExpired()) { // Sadece süresi dolmamışsa hata fırlat
+            if (!t.isExpired()) {
                 throw new BaseException(new ErrorMessage(MessageType.BUSINESS_RULE_VIOLATION, "Mevcut kodunuzun süresi dolmadan yeni kod isteyemezsiniz."));
             }
-            tokenRepository.delete(t); // Süresi dolmuşsa sil ve yenisini oluştur
+            tokenRepository.delete(t);
         });
 
-        // 6 Haneli OTP Üret
+        // 6 Haneli OTP Üretme
         String otp = String.format("%06d", new Random().nextInt(999999));
 
-        // DÜZELTME BURADA: 150 saniye (2.5 dakika)
+        // 2.5 dakika geçerlilik süresi
         PasswordResetToken token = new PasswordResetToken(otp, user, 150);
         tokenRepository.save(token);
 
@@ -84,13 +92,18 @@ public class PasswordResetService {
         }
 
         User user = token.getUser();
+
+
+        if ("GOOGLE".equalsIgnoreCase(user.getProvider())) {
+            throw new BaseException(new ErrorMessage(MessageType.BUSINESS_RULE_VIOLATION, "Google hesabı şifresi değiştirilemez."));
+        }
+
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
 
-        // Kullanıcının tüm oturumlarını kapat (Refresh tokenları sil)
+        // Kullanıcının tüm oturumlarını kapat
         jwtService.revokeAllRefreshTokens(user.getUsername());
 
-        // İşlem bitince token kaydını sil
         tokenRepository.delete(token);
     }
 }

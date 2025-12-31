@@ -109,4 +109,19 @@ public class FilmControllerImpl implements IFilmController {
             );
         }
     }
+
+    // --- SEARCH ---
+    @GetMapping("/search")
+    public ResponseEntity<ApiSuccess<List<DtoFilm>>> searchFilms(@RequestParam String query) {
+        try {
+            List<DtoFilm> results = filmService.searchFilms(query);
+            return ResponseEntity.ok(ApiSuccess.of("Arama sonuçları", results));
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+
+            throw new BaseException(new ErrorMessage(MessageType.INTERNAL_ERROR, "Arama sırasında hata oluştu"));
+        }
+    }
+
 }

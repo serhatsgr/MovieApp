@@ -34,7 +34,7 @@ public class DtoFilmIU {
     private String title;
 
     @NotBlank(message = "{film.description.notBlank}")
-    @Size(min = 10, max = 500, message = "{film.description.size}")
+    @Size(min = 10, max = 1000, message = "{film.description.size}")
     private String description;
 
     @NotNull(message = "{film.releaseDate.notNull}")

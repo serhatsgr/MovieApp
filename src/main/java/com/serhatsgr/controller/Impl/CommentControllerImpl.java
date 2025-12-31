@@ -23,7 +23,7 @@ public class CommentControllerImpl {
 
     private final ICommentService commentService;
 
-    // ===== Create Comment =====
+    // Comment create
     @PostMapping("/save")
     public ResponseEntity<ApiSuccess<CommentResponse>> createComment(
             @Valid @RequestBody CreateCommentRequest request,
@@ -41,7 +41,7 @@ public class CommentControllerImpl {
         }
     }
 
-    // ===== Update Comment =====
+    // comment update
     @PutMapping("/update/{id}")
     public ResponseEntity<ApiSuccess<CommentResponse>> updateComment(
             @PathVariable(name = "id") Long id,
@@ -60,7 +60,7 @@ public class CommentControllerImpl {
         }
     }
 
-    // ===== Delete Comment =====
+    // comment delete
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<ApiSuccess<Void>> deleteComment(
             @PathVariable(name = "id") Long id,
@@ -78,7 +78,7 @@ public class CommentControllerImpl {
         }
     }
 
-    // ===== Get Comments by Film =====
+    // get comments by film
     @GetMapping("/film/{filmId}")
     public ResponseEntity<ApiSuccess<List<CommentResponse>>> getCommentsByFilm(
             @PathVariable Long filmId

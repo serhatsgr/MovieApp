@@ -18,7 +18,7 @@ public class EmailService {
 
     public void sendOtpEmail(String to, String otp) {
         try {
-            log.info("📧 Mail gönderimi başlatıldı: {}", to);
+            log.info(" Mail gönderimi başlatıldı: {}", to);
 
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom("MovieApp <noreply@movieapp.com>"); // Görünen isim
@@ -33,11 +33,10 @@ public class EmailService {
 
             mailSender.send(message);
 
-            log.info("✅ Mail başarıyla gönderildi: {}", to);
+            log.info(" Mail başarıyla gönderildi: {}", to);
 
         } catch (Exception e) {
-            log.error("❌ Mail gönderme hatası: {}", e.getMessage());
-            // Mail hatası, kullanıcıya "Sunucu hatası" olarak dönmeli
+            log.error(" Mail gönderme hatası: {}", e.getMessage());
             throw new BaseException(new ErrorMessage(MessageType.INTERNAL_ERROR, "Mail gönderilemedi. Lütfen daha sonra tekrar deneyiniz."));
         }
     }

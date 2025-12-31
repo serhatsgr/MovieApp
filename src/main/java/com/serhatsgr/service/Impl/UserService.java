@@ -53,7 +53,7 @@ public class UserService implements UserDetailsService {
         return user.orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + username));
     }
 
-    // =============== CREATE USER ===============
+    // CREATE USER
     public CreateUserResponse createUser(CreateUserRequest request) {
         try {
             logger.info("Creating new user: {}", request.username());
@@ -174,7 +174,15 @@ public class UserService implements UserDetailsService {
         );
     }
 
-    // =============== BAN / UNBAN USER ===============
+    // =============== GET USER BY USERNAME ===============
+    public User getUserByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new BaseException(new ErrorMessage(
+                        MessageType.RESOURCE_NOT_FOUND,
+                        "Kullanıcı bulunamadı: " + username
+                )));
+    }
+    // user ban
     public UserDto toggleUserBan(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() ->
@@ -186,8 +194,7 @@ public class UserService implements UserDetailsService {
         return getUserById(userRepository.save(user).getId());
     }
 
-
-    // =============== TOGGLE ROLE (USER <-> ADMIN) ===============
+    // role change
     @Transactional
     public UserDto toggleUserRole(Long id) {
 
@@ -212,7 +219,7 @@ public class UserService implements UserDetailsService {
     }
 
 
-    // =============== DELETE USER ===============
+    // user delete
     public void deleteUser(Long id) {
 
         if (!userRepository.existsById(id)) {
@@ -224,7 +231,7 @@ public class UserService implements UserDetailsService {
     }
 
 
-    // =============== DELETE BY USERNAME (SELF DELETE) ===============
+    // self delete
     public void deleteUserByUsername(String username) {
 
         User user = userRepository.findByUsername(username)

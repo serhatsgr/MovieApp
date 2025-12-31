@@ -9,7 +9,6 @@ import java.util.Objects;
 @Entity
 @Table(name = "comments")
 public class Comment {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -21,7 +20,6 @@ public class Comment {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
-
     private boolean isDeleted = false;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

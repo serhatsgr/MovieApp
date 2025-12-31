@@ -17,7 +17,7 @@ public class InteractionController {
     private final FavoriteService favoriteService;
     private final WatchedService watchedService;
 
-    // --- FAVORITES ---
+    // favorites
     @GetMapping("/favorites")
     public ResponseEntity<ApiSuccess<List<DtoFilm>>> getFavorites() {
         return ResponseEntity.ok(ApiSuccess.of("Favoriler", favoriteService.getMyFavorites()));
@@ -35,7 +35,7 @@ public class InteractionController {
         return ResponseEntity.ok(ApiSuccess.of("Favorilerden çıkarıldı", "Removed"));
     }
 
-    // --- WATCHED ---
+    // watched
     @GetMapping("/watched")
     public ResponseEntity<ApiSuccess<List<DtoFilm>>> getWatched() {
         return ResponseEntity.ok(ApiSuccess.of("İzlenenler", watchedService.getMyWatchedList()));
